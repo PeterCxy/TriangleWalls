@@ -1,9 +1,11 @@
 import { get, trianglifyUrl } from "./Utility"
 import { Observable } from "rxjs/Rx"
+import { serve } from "../main"
 
-module Unsplash {
-  export function daily(): Observable<string> {
-    return get("https://source.unsplash.com/daily")
+class Unsplash {
+  @serve("GET", "/unsplash/:type(daily|weekly)", "type")
+  static random(type: string): Observable<string> {
+    return get(`https://source.unsplash.com/${type}`)
       .flatMap((response) => trianglifyUrl(response.res.headers.location))
   }
 }
