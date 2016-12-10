@@ -1,4 +1,6 @@
 import * as request from "request"
+import * as fs from "fs"
+import * as crypto from "crypto"
 import { IncomingMessage } from "http"
 import { Observable, Observer } from "rxjs/Rx"
 import Triangloid from "../trianglify/Triangloid"
@@ -64,13 +66,57 @@ module Utility {
       })
     })
   }
-  export function trianglizeUrl(url: string, qs?: any): Observable<string> {
-    // TODO: Read from cache if the file is found
-    return download(url, qs)
-      .flatMap(decode)
-      .flatMap((image) => new Triangloid({ cellsize: 30 })
-        .trianglizeRawImage(image.bitmap.data, image.bitmap.width, image.bitmap.height).generateSVG())
-    // TODO: Write to cache
+  export function md5(str: string): string {
+    return crypto.createHash("md5").update(str).digest("hex")
+  }
+  export function readFile(path: string): Observable<string> {
+    return Observable.create((observer: Observer<string>) => {
+      fs.readFile(path, "utf8", (err, data) => {
+        if (err != null) {
+          observer.error(err)
+        } else {
+          observer.next(data)
+          observer.complete()
+        }
+      })
+    })
+  }
+  export function writeFile(path: string, content: string): Observable<string> {
+    return Observable.create((observer: Observer<string>) => {
+      fs.writeFile(path, content, (err) => {
+        if (err != null) {
+          observer.error(err)
+        } else {
+          observer.next(content)
+          observer.complete()
+        }
+      })
+    })
+  }
+  export function fileExists(path: string): Observable<boolean> {
+    return Observable.create((observer: Observer<boolean>) => {
+      fs.exists(path, (exists) => {
+        observer.next(exists)
+        observer.complete()
+      })
+    })
+  }
+  export function trianglifyUrl(url: string, qs?: any): Observable<string> {
+    return _trianglifyUrl(url, md5(url), qs)
+  }
+  function _trianglifyUrl(url: string, urlMD5: string, qs?: any): Observable<string> {
+    return fileExists(`./data/${urlMD5}.svg`)
+      .flatMap((exists) => {
+        if (exists) {
+          return readFile(`./data/${urlMD5}.svg`)
+        } else {
+          return download(url, qs)
+            .flatMap(decode)
+            .flatMap((image) => new Triangloid({ cellsize: 30 })
+              .trianglizeRawImage(image.bitmap.data, image.bitmap.width, image.bitmap.height).generateSVG())
+            .flatMap((svg) => writeFile(`./data/${urlMD5}.svg`, svg))
+        }
+      })
   }
 }
 
